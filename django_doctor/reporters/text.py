@@ -1,6 +1,17 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from django_doctor.core.diagnostics import Diagnostic, DoctorResult
+
+RESET = "\x1b[0m"
+BOLD = "\x1b[1m"
+DIM = "\x1b[2m"
+GREEN = "\x1b[32m"
+YELLOW = "\x1b[33m"
+RED = "\x1b[31m"
+CYAN = "\x1b[36m"
+GRAY = "\x1b[90m"
 
 
 def render_text(
@@ -10,6 +21,9 @@ def render_text(
     ignored_count: int = 0,
     explain: str | None = None,
 ) -> str:
+    if verbose or explain is not None:
+        return _render_verbose_text(result, ignored_count=ignored_count, explain=explain)
+
     lines = [
         "Django Doctor Report",
         "",
@@ -24,17 +38,6 @@ def render_text(
         f"  Info: {result.summary.get('info', 0)}",
     ]
 
-    if verbose:
-        lines.extend(
-            [
-                "",
-                "Scan:",
-                f"  Files scanned: {result.scan.files_scanned}",
-                f"  Rules enabled: {result.scan.rules_enabled}",
-                f"  Active ignores: {ignored_count}",
-            ]
-        )
-
     selected = _filter_explain(result.diagnostics, explain)
     if explain is not None and not selected:
         lines.extend(["", f"No diagnostic applies at {explain}."])
@@ -44,14 +47,46 @@ def render_text(
     if not selected:
         lines.append("  No diagnostics found.")
     for diagnostic in selected:
-        if verbose or explain is not None:
-            lines.extend(_verbose_diagnostic(diagnostic))
-        else:
-            lines.extend(_compact_diagnostic(diagnostic))
+        lines.extend(_compact_diagnostic(diagnostic))
 
-    if not verbose and explain is None and selected:
+    if explain is None and selected:
         lines.extend(["", "Run with --verbose for detailed explanations."])
     return "\n".join(lines) + "\n"
+
+
+def _render_verbose_text(
+    result: DoctorResult, *, ignored_count: int = 0, explain: str | None = None
+) -> str:
+    selected = _filter_explain(result.diagnostics, explain)
+    lines = [
+        _style("✓", GREEN) + " Running django-doctor checks.",
+        _style(
+            f"Project: {result.project.name}  "
+            f"Mode: {_mode_line(result)}  "
+            f"Score: {result.score.value}/100 ({result.score.label})",
+            DIM,
+        ),
+        _style(
+            f"Files: {result.scan.files_scanned}  "
+            f"Rules: {result.scan.rules_enabled}  "
+            f"Ignores: {ignored_count}",
+            DIM,
+        ),
+        "",
+    ]
+
+    if explain is not None and not selected:
+        lines.append(f"No diagnostic applies at {explain}.")
+        return "\n".join(lines) + "\n"
+
+    if not selected:
+        lines.append(_style("✓", GREEN) + " No diagnostics found.")
+        return "\n".join(lines) + "\n"
+
+    for group in _group_diagnostics(selected):
+        lines.extend(_verbose_group(group))
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _mode_line(result: DoctorResult) -> str:
@@ -74,26 +109,52 @@ def _compact_diagnostic(diagnostic: Diagnostic) -> list[str]:
     return lines
 
 
-def _verbose_diagnostic(diagnostic: Diagnostic) -> list[str]:
+def _verbose_group(diagnostics: list[Diagnostic]) -> list[str]:
+    first = diagnostics[0]
+    severity_color = _severity_color(first.severity)
+    count = f" ×{len(diagnostics)}" if len(diagnostics) > 1 else ""
     lines = [
-        "",
-        f"  [{diagnostic.severity}] {diagnostic.id}",
-        f"  Title: {diagnostic.title}",
-        f"  Category: {diagnostic.category}",
+        f"  {_style('▲', severity_color)} "
+        f"{_style(first.id, severity_color + BOLD)}{_style(count, GRAY)}",
+        _style(f"     {first.title}", DIM),
+        _style(f"     {first.message}", DIM),
     ]
-    location = _location(diagnostic)
-    if location:
-        lines.append(f"  Location: {location}")
-    lines.append(f"  Message: {diagnostic.message}")
-    if diagnostic.why:
-        lines.append(f"  Why: {diagnostic.why}")
-    if diagnostic.recommendation:
-        lines.append(f"  Suggested fix: {diagnostic.recommendation}")
-    if diagnostic.confidence:
-        lines.append(f"  Confidence: {diagnostic.confidence}")
-    if diagnostic.tags:
-        lines.append(f"  Tags: {', '.join(diagnostic.tags)}")
+    if first.recommendation:
+        lines.append(_style(f"     → {first.recommendation}", DIM))
+    if first.why:
+        lines.append(_style(f"     Why: {first.why}", DIM))
+
+    meta = f"severity: {first.severity}  category: {first.category}"
+    if first.confidence:
+        meta += f"  confidence: {first.confidence}"
+    if first.tags:
+        meta += f"  tags: {', '.join(first.tags)}"
+    lines.append(_style(f"     {meta}", GRAY))
+
+    for diagnostic in diagnostics:
+        location = _location(diagnostic)
+        if location:
+            lines.append(_style(f"     {location}", GRAY))
     return lines
+
+
+def _group_diagnostics(diagnostics: list[Diagnostic]) -> list[list[Diagnostic]]:
+    grouped: dict[str, list[Diagnostic]] = defaultdict(list)
+    for diagnostic in diagnostics:
+        grouped[diagnostic.id].append(diagnostic)
+    return list(grouped.values())
+
+
+def _severity_color(severity: str) -> str:
+    if severity == "error":
+        return RED
+    if severity == "warning":
+        return YELLOW
+    return CYAN
+
+
+def _style(text: str, code: str) -> str:
+    return f"{code}{text}{RESET}"
 
 
 def _location(diagnostic: Diagnostic) -> str | None:

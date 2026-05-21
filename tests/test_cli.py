@@ -54,6 +54,24 @@ def test_score_prints_only_integer(tmp_path: Path) -> None:
     assert result.stdout.strip().isdigit()
 
 
+def test_verbose_output_groups_diagnostics_with_color(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = True\n")
+    (tmp_path / "config" / "production_settings.py").write_text(
+        "DEBUG = True\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, [str(tmp_path), "--verbose"])
+
+    assert result.exit_code == 0
+    assert "\x1b[32m✓\x1b[0m Running django-doctor checks." in result.stdout
+    assert "django/security/debug-true" in result.stdout
+    assert "×2" in result.stdout
+    assert "→ Use an environment variable and default DEBUG to False." in result.stdout
+    assert "config/settings.py:1" in result.stdout
+    assert "config/production_settings.py:1" in result.stdout
+
+
 def test_diff_and_staged_conflict(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path), "--diff", "main", "--staged"])
 
