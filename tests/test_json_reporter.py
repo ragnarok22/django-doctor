@@ -1,5 +1,5 @@
 from django_doctor.core.diagnostics import DoctorResult, ProjectInfo, ScanInfo, Score
-from django_doctor.reporters.json import render_json
+from django_doctor.reporters.json import render_error, render_json
 
 
 def test_json_compact_returns_minified_json() -> None:
@@ -16,3 +16,11 @@ def test_json_compact_returns_minified_json() -> None:
 
     assert "\n" not in output
     assert output.startswith('{"ok":true')
+
+
+def test_render_error_supports_pretty_and_compact_json() -> None:
+    pretty = render_error("RuntimeError", "boom")
+    compact = render_error("RuntimeError", "boom", compact=True)
+
+    assert '\n  "error"' in pretty
+    assert compact == '{"ok":false,"error":{"type":"RuntimeError","message":"boom"}}'

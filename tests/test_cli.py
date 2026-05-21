@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
+import django_doctor.cli as cli_module
 from django_doctor.api import diagnose
-from django_doctor.cli import app, install_command
+from django_doctor.cli import _preprocess_args, app, install_command, main
 
 runner = CliRunner()
 
@@ -145,6 +149,118 @@ def test_annotations_with_json_write_annotations_to_stderr(tmp_path: Path) -> No
     assert "::error" not in result.stdout
 
 
+def test_annotations_without_json_write_to_stdout(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = True\n")
+
+    result = runner.invoke(app, [str(tmp_path), "--annotations"])
+
+    assert result.exit_code == 0
+    assert "::error" in result.stdout
+
+
+def test_output_file_writes_report_and_prints_confirmation(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = False\n")
+    output = tmp_path / "reports" / "doctor.txt"
+
+    result = runner.invoke(app, [str(tmp_path), "--output", str(output)])
+
+    assert result.exit_code == 0
+    assert "Report written to" in result.stdout
+    assert "doctor.txt" in result.stdout
+    assert "Running django-doctor checks" in output.read_text(encoding="utf-8")
+
+
+def test_json_output_file_does_not_print_confirmation(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = False\n")
+    output = tmp_path / "report.json"
+
+    result = runner.invoke(app, [str(tmp_path), "--json", "--output", str(output)])
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    assert json.loads(output.read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_more_cli_conflicts_and_usage_errors(tmp_path: Path) -> None:
+    cases = [
+        ([str(tmp_path), "--full", "--staged"], "--full and --staged"),
+        ([str(tmp_path), "--fail-on", "bad"], "--fail-on must be"),
+        ([str(tmp_path), "--category", "unknown"], "Unknown category"),
+    ]
+
+    for args, message in cases:
+        result = runner.invoke(app, args)
+        assert result.exit_code == 2
+        assert message in result.stderr
+
+    json_cases = [
+        ([str(tmp_path), "--json", "--score"], "--json and --score"),
+        ([str(tmp_path), "--json-compact", "--score"], "--json-compact and --score"),
+        ([str(tmp_path), "--json", "--json-compact"], "--json and --json-compact"),
+    ]
+    for args, message in json_cases:
+        result = runner.invoke(app, args)
+        assert result.exit_code == 2
+        assert message in result.stdout
+
+
+def test_json_usage_error_returns_valid_json(tmp_path: Path) -> None:
+    result = runner.invoke(app, [str(tmp_path), "--json", "--fail-on", "bad"])
+    data = json.loads(result.stdout)
+
+    assert result.exit_code == 2
+    assert data["ok"] is False
+    assert data["error"]["type"] == "UsageFailure"
+
+
+def test_explain_reports_matching_diagnostic_and_no_match(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = True\n")
+
+    match = runner.invoke(app, [str(tmp_path), "--explain", "config/settings.py:1"])
+    no_match = runner.invoke(app, [str(tmp_path), "--explain", "config/settings.py:2"])
+
+    assert match.exit_code == 0
+    assert "django/security/debug-true" in match.stdout
+    assert no_match.exit_code == 0
+    assert "No diagnostic applies" in no_match.stdout
+
+
+def test_preprocess_args_adds_auto_diff_sentinel() -> None:
+    assert _preprocess_args([".", "--diff", "--json"]) == [
+        ".",
+        "--diff",
+        "__django_doctor_auto_diff__",
+        "--json",
+    ]
+    assert _preprocess_args([".", "--diff", "main"]) == [".", "--diff", "main"]
+
+
+def test_main_dispatches_install(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["django-doctor", "install"])
+
+    with pytest.raises(typer.Exit):
+        main()
+
+    assert (tmp_path / ".django-doctor" / "AGENTS.md").exists()
+
+
+def test_main_delegates_non_install_args(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    called = False
+
+    def fake_app() -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(sys, "argv", ["django-doctor", ".", "--diff"])
+    monkeypatch.setattr(cli_module, "app", fake_app)
+
+    main()
+
+    assert called
+    assert sys.argv == ["django-doctor", ".", "--diff", "__django_doctor_auto_diff__"]
+
+
 def test_debug_true_rule_detects_debug_true(tmp_path: Path) -> None:
     _write_settings(tmp_path, "DEBUG = True\n")
 
@@ -161,6 +277,25 @@ def test_secret_key_rule_does_not_flag_os_environ(tmp_path: Path) -> None:
     ids = [diagnostic.id for diagnostic in result.diagnostics]
 
     assert "django/security/secret-key-hardcoded" not in ids
+
+
+def test_security_rules_detect_common_settings_risks(tmp_path: Path) -> None:
+    _write_settings(
+        tmp_path,
+        """
+SECRET_KEY = "hardcoded"
+ALLOWED_HOSTS = ["*"]
+CORS_ALLOW_ALL_ORIGINS = True
+""".strip(),
+    )
+
+    result = diagnose(path=str(tmp_path), categories=["security"])
+
+    assert [diagnostic.id for diagnostic in result.diagnostics] == [
+        "django/security/secret-key-hardcoded",
+        "django/security/allowed-hosts-wildcard",
+        "django/security/cors-allow-all",
+    ]
 
 
 def test_serializer_fields_all_rule_detects_all_fields(tmp_path: Path) -> None:
@@ -199,6 +334,67 @@ class UserView:
 
     assert [diagnostic.id for diagnostic in result.diagnostics] == [
         "django/drf/allow-any-permission"
+    ]
+
+
+def test_allow_any_permission_rule_handles_variants_and_disabled_config(tmp_path: Path) -> None:
+    views = tmp_path / "users" / "views.py"
+    views.parent.mkdir()
+    views.write_text(
+        """
+from rest_framework import permissions
+
+class UserView:
+    self.permission_classes = [permissions.AllowAny]
+    permission_classes: list = [permissions.AllowAny]
+""".strip(),
+        encoding="utf-8",
+    )
+    (tmp_path / "broken.py").write_text("if True print('bad')", encoding="utf-8")
+
+    result = diagnose(path=str(tmp_path), categories=["drf"])
+    assert [diagnostic.id for diagnostic in result.diagnostics] == [
+        "django/drf/allow-any-permission",
+        "django/drf/allow-any-permission",
+    ]
+
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[tool.django-doctor]
+
+[tool.django-doctor.rules]
+check_drf_permissions = false
+""".strip(),
+        encoding="utf-8",
+    )
+    disabled = diagnose(path=str(tmp_path), categories=["drf"])
+    assert disabled.diagnostics == []
+
+
+def test_architecture_and_testing_rules_detect_large_file_and_missing_tests(
+    tmp_path: Path,
+) -> None:
+    app_dir = tmp_path / "users"
+    app_dir.mkdir()
+    (app_dir / "views.py").write_text("\n".join(["pass"] * 3), encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[tool.django-doctor]
+
+[tool.django-doctor.rules]
+max_views_file_lines = 2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    architecture = diagnose(path=str(tmp_path), categories=["architecture"])
+    testing = diagnose(path=str(tmp_path), categories=["testing"])
+
+    assert [diagnostic.id for diagnostic in architecture.diagnostics] == [
+        "django/architecture/large-file"
+    ]
+    assert [diagnostic.id for diagnostic in testing.diagnostics] == [
+        "django/testing/no-tests-detected"
     ]
 
 
