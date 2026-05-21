@@ -17,8 +17,26 @@ def test_cli_default_scan_works(tmp_path: Path) -> None:
     result = runner.invoke(app, [str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "Django Doctor Report" in result.stdout
+    assert "\x1b[32m✓\x1b[0m Running django-doctor checks." in result.stdout
     assert "Score:" in result.stdout
+
+
+def test_default_output_groups_diagnostics_with_color(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = True\n")
+    (tmp_path / "config" / "production_settings.py").write_text(
+        "DEBUG = True\n",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, [str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "django/security/debug-true" in result.stdout
+    assert "×2" in result.stdout
+    assert "→ Use an environment variable and default DEBUG to False." in result.stdout
+    assert "config/settings.py:1" in result.stdout
+    assert "config/production_settings.py:1" in result.stdout
+    assert "Run with --verbose for detailed explanations." in result.stdout
 
 
 def test_json_returns_valid_json(tmp_path: Path) -> None:

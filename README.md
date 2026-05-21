@@ -83,23 +83,15 @@ uv run django-doctor . --fail-on warning
 ## Example Report
 
 ```text
-Django Doctor Report
+✓ Running django-doctor checks.
+Project: my-project  Mode: full  Score: 88/100 (good)
+Errors: 1  Warnings: 4  Info: 2
 
-Project: my-project
-Root: /path/to/project
-Mode: full
-Score: 88/100 - good
-
-Summary:
-  Errors: 1
-  Warnings: 4
-  Info: 2
-
-Diagnostics:
-  [error] django/security/debug-true
-  DEBUG is enabled
-  config/settings.py:12
-  Use an environment variable and default DEBUG to False.
+  ▲ django/security/debug-true ×2
+     DEBUG is enabled
+     → Use an environment variable and default DEBUG to False.
+     config/settings.py:12
+     config/production_settings.py:8
 
 Run with --verbose for detailed explanations.
 ```
