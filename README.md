@@ -1,127 +1,241 @@
 # django-doctor
 
-`django-doctor` is a Django-aware health scanner for local development, code review, and CI. It is inspired by React Doctor and focuses on fast, actionable diagnostics for common Django security, architecture, DRF, and testing issues.
+`django-doctor` is a Django-aware health scanner for local development, code review, CI, and AI coding agents.
 
-This first version provides the CLI foundation, JSON reporting, scoring, diff/staged scans, GitHub Actions annotations, and an extensible rule architecture.
+It scans a project for common Django risks, reports actionable diagnostics, produces a simple health score, and supports full, diff-only, and staged-file workflows.
 
-## Why it exists
+## Highlights
 
-Django projects accumulate risk in settings files, serializers, permissions, and large modules. `django-doctor` gives teams and AI coding agents a consistent command to run after changes and before commits.
+- Django-focused rules for settings, security, DRF, architecture, and tests.
+- Human-readable terminal reports plus stable JSON output.
+- `--diff` and `--staged` modes for pull requests and pre-commit hooks.
+- CI-friendly exit codes with `--fail-on error|warning|none`.
+- GitHub Actions annotations with `--annotations`.
+- Extensible rule architecture for future checks.
+- Public Python API via `django_doctor.api.diagnose`.
+
+## Requirements
+
+- Python 3.12+
+- `uv` for local development and command execution
 
 ## Installation
 
-For local development from this repository:
+From this repository:
 
 ```bash
 uv sync
 uv run django-doctor .
 ```
 
-When published:
+After package publication:
 
 ```bash
 uv tool install django-doctor
 django-doctor .
 ```
 
-## Basic usage
+Or inside a project:
 
 ```bash
-uv run django-doctor
+uv add --dev django-doctor
 uv run django-doctor .
+```
+
+## Quickstart
+
+Run a full scan:
+
+```bash
+uv run django-doctor .
+```
+
+Show detailed explanations:
+
+```bash
 uv run django-doctor . --verbose
+```
+
+Print only the numeric score:
+
+```bash
 uv run django-doctor . --score
 ```
 
-## CLI options
+Scan only changed files against `main`:
 
 ```bash
-django-doctor [directory] [options]
-```
-
-Useful options:
-
-- `--verbose`: show full diagnostic details.
-- `--json`: print pretty JSON.
-- `--json-compact`: print minified JSON.
-- `--score`: print only the numeric score.
-- `--output <file>`: write the selected report to a file.
-- `--diff [base]`: scan files changed against a base branch.
-- `--staged`: scan staged files for pre-commit hooks.
-- `--full`: force a full scan.
-- `--fail-on error|warning|none`: control CI failure behavior.
-- `--annotations`: print GitHub Actions annotations.
-- `--project <name>`: override project name.
-- `--category <category>`: run only selected categories.
-- `--ignore <rule-id>`: suppress a rule.
-- `--config <file>`: load a specific config file.
-- `--explain file:line`: explain diagnostics at one location.
-
-## Output formats
-
-Human report:
-
-```bash
-uv run django-doctor . --verbose
-```
-
-JSON report:
-
-```bash
-uv run django-doctor . --json
-uv run django-doctor . --json-compact
-```
-
-Write reports:
-
-```bash
-uv run django-doctor . --output report.txt
-uv run django-doctor . --json --output report.json
-```
-
-## Diff mode
-
-```bash
-uv run django-doctor . --diff
 uv run django-doctor . --diff main
 ```
 
-Without a base, `django-doctor` tries `main`, `master`, `origin/main`, then `origin/master`.
-
-## Staged mode
+Scan only staged files:
 
 ```bash
 uv run django-doctor . --staged
 ```
 
-This is intended for pre-commit hooks and scans only staged files.
-
-## CI usage
-
-Fail on errors:
-
-```bash
-uv run django-doctor . --fail-on error
-```
-
-Fail on warnings or errors:
+Fail CI on warnings or errors:
 
 ```bash
 uv run django-doctor . --fail-on warning
 ```
 
-## Pre-commit
+## Example Report
 
-```yaml
-repos:
-  - repo: local
-    hooks:
-      - id: django-doctor
-        name: django-doctor
-        entry: uv run django-doctor . --staged --fail-on warning
-        language: system
-        pass_filenames: false
+```text
+Django Doctor Report
+
+Project: my-project
+Root: /path/to/project
+Mode: full
+Score: 88/100 - good
+
+Summary:
+  Errors: 1
+  Warnings: 4
+  Info: 2
+
+Diagnostics:
+  [error] django/security/debug-true
+  DEBUG is enabled
+  config/settings.py:12
+  Use an environment variable and default DEBUG to False.
+
+Run with --verbose for detailed explanations.
 ```
+
+## Command Reference
+
+```bash
+django-doctor [directory] [options]
+```
+
+The `directory` argument defaults to the current directory.
+
+| Option | Description |
+| --- | --- |
+| `--verbose` | Show expanded diagnostic details. |
+| `--json` | Print pretty machine-readable JSON. |
+| `--json-compact` | Print minified JSON. |
+| `--score` | Print only the numeric score. |
+| `--output <file>` | Write the selected report format to a file. |
+| `--diff [base]` | Scan files changed against a base branch or ref. |
+| `--staged` | Scan only staged files. |
+| `--full` | Force a complete project scan. |
+| `--fail-on error\|warning\|none` | Control CI failure behavior. |
+| `--annotations` | Print GitHub Actions annotations. |
+| `--project <name>` | Override the detected project name. |
+| `--category <category>` | Run only rules from a category. Can be repeated. |
+| `--ignore <rule-id>` | Ignore diagnostics from a rule. Can be repeated. |
+| `--config <file>` | Load a specific config file. |
+| `--explain file:line` | Explain diagnostics at a specific location. |
+
+## Output Formats
+
+Pretty JSON:
+
+```bash
+uv run django-doctor . --json
+```
+
+Compact JSON:
+
+```bash
+uv run django-doctor . --json-compact
+```
+
+Write a text report:
+
+```bash
+uv run django-doctor . --output report.txt
+```
+
+Write a JSON report:
+
+```bash
+uv run django-doctor . --json --output report.json
+```
+
+Normal JSON output has this shape:
+
+```json
+{
+  "ok": true,
+  "project": {
+    "name": "example-project",
+    "root": "/absolute/path",
+    "framework": "django",
+    "django_version": null
+  },
+  "scan": {
+    "mode": "full",
+    "base": null,
+    "staged": false,
+    "files_scanned": 42,
+    "rules_enabled": 8
+  },
+  "score": {
+    "value": 88,
+    "label": "good"
+  },
+  "summary": {
+    "error": 1,
+    "warning": 4,
+    "info": 2
+  },
+  "diagnostics": []
+}
+```
+
+## Diff Mode
+
+Diff mode scans only files changed against a base ref:
+
+```bash
+uv run django-doctor . --diff main
+```
+
+If no base is provided, `django-doctor` tries these refs in order:
+
+- `main`
+- `master`
+- `origin/main`
+- `origin/master`
+
+```bash
+uv run django-doctor . --diff
+```
+
+Diff mode uses git and returns a clear usage error if the current directory is not in a git repository or the base cannot be detected.
+
+## Staged Mode
+
+Staged mode scans only files staged for commit:
+
+```bash
+uv run django-doctor . --staged
+```
+
+This is intended for pre-commit hooks and local commit checks.
+
+## CI Behavior
+
+By default, diagnostics do not fail the process. Use `--fail-on` in CI:
+
+```bash
+uv run django-doctor . --fail-on error
+uv run django-doctor . --fail-on warning
+uv run django-doctor . --fail-on none
+```
+
+Exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success. |
+| `1` | Diagnostics met the configured failure threshold. |
+| `2` | CLI usage or configuration error. |
+| `3` | Runtime/internal error. |
 
 ## GitHub Actions
 
@@ -150,6 +264,21 @@ jobs:
       - run: pip install django-doctor
 
       - run: django-doctor . --diff main --fail-on warning --annotations
+```
+
+With `--json` or `--json-compact`, annotations are written to stderr so stdout remains valid JSON.
+
+## Pre-commit
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: django-doctor
+        name: django-doctor
+        entry: uv run django-doctor . --staged --fail-on warning
+        language: system
+        pass_filenames: false
 ```
 
 ## Configuration
@@ -183,7 +312,63 @@ check_debug_true = true
 
 You can also use `django-doctor.config.json` or pass `--config <file>`.
 
-## Public API
+Default excluded directories include `.git`, `.venv`, `venv`, `env`, `__pycache__`, `node_modules`, `staticfiles`, `media`, `dist`, `build`, `.mypy_cache`, `.pytest_cache`, and `.ruff_cache`.
+
+## Categories
+
+Supported categories are:
+
+- `security`
+- `settings`
+- `database`
+- `migrations`
+- `performance`
+- `drf`
+- `architecture`
+- `testing`
+- `templates`
+- `admin`
+- `dependencies`
+
+Not every category has active rules yet, but the scanner and config model support them.
+
+Run only selected categories:
+
+```bash
+uv run django-doctor . --category security --category drf
+```
+
+## Current Rules
+
+| Rule | Severity | Description |
+| --- | --- | --- |
+| `django/security/debug-true` | error | Detects `DEBUG = True` in likely settings files. |
+| `django/security/secret-key-hardcoded` | error | Detects obvious hardcoded `SECRET_KEY` assignments. |
+| `django/security/allowed-hosts-wildcard` | warning | Detects wildcard `ALLOWED_HOSTS`. |
+| `django/security/cors-allow-all` | warning | Detects `CORS_ALLOW_ALL_ORIGINS = True`. |
+| `django/architecture/large-file` | warning | Detects oversized `views.py`, `models.py`, and `serializers.py`. |
+| `django/drf/serializer-fields-all` | warning | Detects serializers using `fields = "__all__"`. |
+| `django/drf/allow-any-permission` | info | Detects DRF `permission_classes` containing `AllowAny`. |
+| `django/testing/no-tests-detected` | info | Detects Django-like apps without `tests.py` or `tests/`. |
+
+## Scoring
+
+Scores start at `100` and are penalized by unique triggered rule IDs, not by occurrence count:
+
+- Unique error rules: `-2` each.
+- Unique warning rules: `-1` each.
+- Unique info rules: `-0.25` each.
+
+Labels:
+
+| Score | Label |
+| --- | --- |
+| `85-100` | `excellent` |
+| `75-84` | `good` |
+| `50-74` | `needs_work` |
+| `0-49` | `critical` |
+
+## Public Python API
 
 ```python
 from django_doctor.api import diagnose
@@ -201,35 +386,62 @@ result = diagnose(
 print(result.model_dump())
 ```
 
-## Current rules
+The returned object is structured and serializable.
 
-- `django/security/debug-true`
-- `django/security/secret-key-hardcoded`
-- `django/security/allowed-hosts-wildcard`
-- `django/security/cors-allow-all`
-- `django/architecture/large-file`
-- `django/drf/serializer-fields-all`
-- `django/drf/allow-any-permission`
-- `django/testing/no-tests-detected`
+## Agent Install
 
-## Inline ignores
+Generate project-local instructions for AI coding agents:
 
-Inline suppression comments are planned for a future version:
+```bash
+uv run django-doctor install
+```
+
+This creates:
+
+```text
+.django-doctor/
+  AGENTS.md
+  rules.md
+  usage.md
+```
+
+## Inline Ignores
+
+Inline suppression comments are planned but not implemented yet:
 
 ```python
 # django-doctor-disable-next-line django/security/debug-true
 DEBUG = True
 ```
 
-For now, use `--ignore <rule-id>` or config `ignore = [...]`.
+For now, suppress rules with `--ignore <rule-id>` or config `ignore = [...]`.
 
-## Agent install
+## Development
+
+Install dependencies:
 
 ```bash
-uv run django-doctor install
+uv sync
 ```
 
-This creates `.django-doctor/AGENTS.md`, `.django-doctor/rules.md`, and `.django-doctor/usage.md`.
+Run tests:
+
+```bash
+uv run pytest
+```
+
+Run linting and formatting:
+
+```bash
+uv run ruff check .
+uv run ruff format .
+```
+
+Build package artifacts:
+
+```bash
+uv build
+```
 
 ## Roadmap
 
