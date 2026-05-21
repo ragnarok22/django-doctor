@@ -4,6 +4,7 @@
 
 - Use `uv` for all project commands: `uv sync`, `uv run ...`, `uv build`.
 - Before finishing code changes, run tests, formatter, and lint: `uv run pytest && uv run ruff format . && uv run ruff check .`.
+- Coverage command: `uv run pytest --cov`.
 - Focused test example: `uv run pytest tests/test_cli.py::test_json_returns_valid_json`.
 - CLI smoke checks: `uv run django-doctor . --verbose`, `uv run django-doctor . --json`, `uv run django-doctor . --score`.
 - `uv run django-doctor` only works because `pyproject.toml` has `[tool.uv] package = true` and Hatchling build metadata; keep those if editing packaging.

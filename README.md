@@ -422,6 +422,12 @@ Run tests:
 uv run pytest
 ```
 
+Run tests with coverage:
+
+```bash
+uv run pytest --cov
+```
+
 Run linting and formatting:
 
 ```bash
