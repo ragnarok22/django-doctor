@@ -2,8 +2,12 @@
 
 [![CI](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/ragnarok22/django-doctor/branch/main/graph/badge.svg)](https://codecov.io/gh/ragnarok22/django-doctor)
-![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
-![Ruff](https://img.shields.io/badge/linting-ruff-261230.svg)
+[![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml)
+[![pytest](https://img.shields.io/badge/tests-pytest-0A9EDC.svg)](https://docs.pytest.org/)
+[![Ruff](https://img.shields.io/badge/linting%20%26%20formatting-ruff-261230.svg)](https://docs.astral.sh/ruff/)
+[![uv](https://img.shields.io/badge/package%20manager-uv-654FF0.svg)](https://docs.astral.sh/uv/)
+[![GitHub issues](https://img.shields.io/github/issues/ragnarok22/django-doctor.svg)](https://github.com/ragnarok22/django-doctor/issues)
+[![Last commit](https://img.shields.io/github/last-commit/ragnarok22/django-doctor.svg)](https://github.com/ragnarok22/django-doctor/commits/main)
 
 `django-doctor` is a Django-aware health scanner for local development, code review, CI, and AI coding agents.
 
