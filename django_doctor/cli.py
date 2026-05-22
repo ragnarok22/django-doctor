@@ -147,7 +147,7 @@ def _run_scan_command(
     if output is not None:
         write_output(output, rendered)
         if not (json_output or json_compact or score_only):
-            Console().print(f"Report written to {output}")
+            sys.stdout.write(f"Report written to {output}\n")
     else:
         sys.stdout.write(rendered)
 

@@ -1,6 +1,7 @@
 # django-doctor
 
 [![CI](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ragnarok22/django-doctor/branch/main/graph/badge.svg)](https://codecov.io/gh/ragnarok22/django-doctor)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 ![Ruff](https://img.shields.io/badge/linting-ruff-261230.svg)
 

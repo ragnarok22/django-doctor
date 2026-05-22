@@ -170,6 +170,16 @@ def test_output_file_writes_report_and_prints_confirmation(tmp_path: Path) -> No
     assert "Running django-doctor checks" in output.read_text(encoding="utf-8")
 
 
+def test_output_file_confirmation_does_not_wrap_long_path(tmp_path: Path) -> None:
+    _write_settings(tmp_path, "DEBUG = False\n")
+    output = tmp_path / ("nested-" * 12) / "doctor.txt"
+
+    result = runner.invoke(app, [str(tmp_path), "--output", str(output)])
+
+    assert result.exit_code == 0
+    assert result.stdout == f"Report written to {output}\n"
+
+
 def test_json_output_file_does_not_print_confirmation(tmp_path: Path) -> None:
     _write_settings(tmp_path, "DEBUG = False\n")
     output = tmp_path / "report.json"
