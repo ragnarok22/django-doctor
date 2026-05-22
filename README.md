@@ -1,5 +1,9 @@
 # django-doctor
 
+[![CI](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/ragnarok22/django-doctor/actions/workflows/ci.yml)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)
+![Ruff](https://img.shields.io/badge/linting-ruff-261230.svg)
+
 `django-doctor` is a Django-aware health scanner for local development, code review, CI, and AI coding agents.
 
 It scans a project for common Django risks, reports actionable diagnostics, produces a simple health score, and supports full, diff-only, and staged-file workflows.
